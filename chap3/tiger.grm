@@ -1,0 +1,146 @@
+%{
+#include <stdio.h>
+#include "util.h"
+#include "errormsg.h"
+
+int yydebug = 1;
+
+int yylex(void); /* function prototype */
+
+void yyerror(char *s)
+{
+ EM_error(EM_tokPos, "%s", s);
+}
+%}
+
+
+%union {
+	int pos;
+	int ival;
+	string sval;
+	}
+
+%token <sval> ID STRING
+%token <ival> INT
+
+%token 
+  COMMA COLON SEMICOLON LPAREN RPAREN LBRACK RBRACK 
+  LBRACE RBRACE DOT 
+  PLUS MINUS TIMES DIVIDE EQ NEQ LT LE GT GE
+  AND OR ASSIGN
+  ARRAY IF THEN ELSE WHILE FOR TO DO LET IN END OF 
+  BREAK NIL
+  FUNCTION VAR TYPE 
+
+%start program
+%left ASSIGN
+%left OR
+%left AND
+%nonassoc EQ NEQ LE GE LT GT
+%left PLUS MINUS 
+%left TIMES DIVIDE
+%left UMINUS
+
+%nonassoc IFX
+%nonassoc ELSE
+%%
+
+program:	exp
+
+dec:   tyDec
+     | varDec
+     | funDec
+
+tyDec: TYPE ID EQ ty
+
+ty:   ID
+    | LPAREN tyFields RPAREN
+    | ARRAY OF ID
+
+tyFields 
+     : /* empty */  
+     | tyField_list
+
+tyField_list
+     : tyField
+     | tyField COMMA tyField_list
+      
+tyField : ID COLON ID
+
+varDec : VAR ID ASSIGN exp
+       | VAR ID COLON ID ASSIGN exp
+
+funDec : FUNCTION ID LPAREN tyFields RPAREN EQ exp
+       | FUNCTION ID LPAREN tyFields RPAREN COLON ID EQ exp
+
+exp : letExp
+    | infixExp
+    | seqExp
+    | ifThenElseExp
+    | whileExp
+    | forExp
+    | assignExp
+    | lValue
+    | callExp
+    | arrCreate
+    | recCreate
+    | NIL
+    | INT
+    | STRING
+    | BREAK
+
+infixExp : exp PLUS exp
+         | exp MINUS exp
+         | exp TIMES exp
+         | exp DIVIDE exp
+         | exp EQ exp
+         | exp NEQ exp
+         | exp GT exp
+         | exp LT exp
+         | exp GE exp
+         | exp LE exp
+         | exp OR exp
+         | exp AND exp
+         | MINUS exp   %prec UMINUS
+
+decs : dec
+     | dec decs
+
+exps 
+     : /* empty */
+     | expLists
+
+expLists
+     : exp
+     | exp SEMICOLON expLists 
+
+letExp : LET decs IN exps END
+
+seqExp : LPAREN exps RPAREN
+
+ifThenElseExp : IF exp THEN exp  %prec IFX
+              | IF exp THEN exp ELSE exp
+
+whileExp : WHILE exp DO exp
+
+forExp : FOR ID ASSIGN exp TO exp DO exp
+
+assignExp : lValue ASSIGN exp
+
+subscript : lValue LBRACK exp RBRACK
+fieldExp : lValue DOT ID
+lValue : ID 
+       | subscript
+       | fieldExp
+
+callExp : ID LPAREN exps RPAREN
+
+arrCreate : ID LBRACK exp RBRACK OF exp
+
+recCreate : ID LBRACE fieldCreates RBRACE
+
+fieldCreates : /* empty */
+             | fields
+
+fields : ID EQ exp
+       | ID EQ exp COMMA fields
